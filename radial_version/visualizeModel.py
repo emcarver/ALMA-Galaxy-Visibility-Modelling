@@ -1,9 +1,5 @@
-#This script is designed to take in the output products of my fitting script chain, and use it to generate model visibilities, residual visibilities,
-#and a CLEAN image of the residual visibilities.
-
-#requires that you input the same ms file that you generated the uvtable from (split with keepFlags=False, uniform size, etc.)
-#how can I call the same logger that I set up in the other python file? just call separately but don't overwrite??
-
+#
+#If you have a proper TeX installation: fix lines 25, ()() 
 ###%%%###%%%###%%%###%%%###%%%###
 
 ###%%%###%%%### Package Imports ###%%%###%%%###
@@ -12,7 +8,6 @@ import sys
 import ast
 import logging
 import numpy as np
-from scipy import ndimage
 from astropy.io import fits
 from astropy.wcs import WCS
 from scipy.special import j1
@@ -23,9 +18,11 @@ from astropy.nddata.utils import Cutout2D
 from galario.double import sampleProfile, get_image_size
 
 #I like when my matplotlib figures have a certain style so I set that here. 
+#From running actual tests: Please note that an error about missing TeX files ('cmr12.tfm') is thrown when I use this in-script due to the image I am running on.
 from matplotlib import pyplot as plt
 from matplotlib import rc
-rc('text', usetex=True)
+#rc('text', usetex=True)
+rc('text', usetex=False)
 font = {'family' : 'serif',
         'weight' : 'bold',
         'size'   : '14'}
@@ -106,7 +103,8 @@ def make_2d(paramdict, posfile, fitType):
         return None
     return model_jysr
 ###%%%###%%%###%%%###%%%###%%%###%%%###%%%###%%%###
-###%%%###%%%### Dealing with visibilities function definitions ###%%%###%%%###
+
+###%%%###%%%### Function definitions ###%%%###%%%###
 def read_param_file(file):
     params={}
     with open(file, 'r') as f:
@@ -129,9 +127,7 @@ def initialize_data(datatable, frequency):
 
     nx, dx = get_image_size(u, v)
     return  nx, dx, u, v, re, im, w
-###%%%###%%%###%%%###%%%###%%%###%%%###%%%###%%%###%%%###%%%###%%%###%%%###%%%###
 
-###%%%###%%%### Dealing with plotting images functions ###%%%###%%%###
 #Because the model was created on a grid that is identical to that on which the fits image already exists, we don't have to worry about changing the image or pixel size. 
 #The image is in units of Jy/bm though, which has to be converted over to Jy/sr to match the intensity scale of the model (and provide a unit better made for comparison)
 def jybm_to_jysr(infile):
@@ -152,13 +148,11 @@ def img_prepper(fitsimg, center, box):
     return im_plot.data, im_wcs
 
 def total_prepper(fitsimg, model, center, box):
-    if center.__class__.__name__!='SkyCoord': #needed this earlier when i thought I could pass this in as a SkyCoord object, but now I do the conversion manually. 
-        logging.error('The image center parameter must be an astropy SkyCoord object. Please check this and run again.')
-        return None
     img_final, img_wcs = img_prepper(fitsimg, center, box)
     model_final = Cutout2D(model, center, box, wcs=img_wcs).data
     return img_final, img_wcs, model_final
 
+#If this had implemented CLEANing and showed the residual image, then I would need multiple colorbars. Currently only need 1 shared color bar, thus this is commented out
 def plot_panel_pretty(ax, plotdata, label, vmin=None, vmax=None, cmap='inferno', text_color='w'):
     im = ax.imshow(plotdata, vmin=vmin, vmax=vmax, origin='lower', cmap=cmap)
     ax.text(5, 5, label, color=text_color, fontsize=16)
@@ -167,13 +161,14 @@ def plot_panel_pretty(ax, plotdata, label, vmin=None, vmax=None, cmap='inferno',
 
 def plot_img_model_residimg(paramdict, model_array, productprefix):
     center = SkyCoord(paramdict['plotCenterRA'], paramdict['plotCenterDec'], frame='icrs')
+    logging.info('Attempting to plot the model...')
     data_img, data_wcs, model_plot = total_prepper(paramdict['dataFITSFile'], model_array, center, [paramdict['plotBoxSide']*u.arcsecond, paramdict['plotBoxSide']*u.arcsecond])
 
     fig = plt.figure(figsize=(12,5))
 
-    ax1 = plt.subplot(131, projection=data_wcs)
+    ax1 = plt.subplot(121, projection=data_wcs)
     im1 = plot_panel_pretty(ax1, data_img, 'CLEAN Image', np.percentile(data_img, 1), np.percentile(data_img, 99.95))
-    ax2 = plt.subplot(132, projection=data_wcs)
+    ax2 = plt.subplot(122, projection=data_wcs)
     plot_panel_pretty(ax2, model_plot, 'Model Sky Intensity', np.percentile(data_img, 1), np.percentile(data_img, 99.95))
 
     axes=[ax1, ax2]
@@ -188,20 +183,21 @@ def plot_img_model_residimg(paramdict, model_array, productprefix):
         else:
             ax.set_xlabel(r"Right Ascension (J2000)", size=22)
 
-    cbar = fig.colorbar(im1, ax=fig.axes, orientation='horizontal', anchor=(0, 8.5),aspect=30)
+    #comment out if multiple colorbars
+    cbar = fig.colorbar(im1, ax=fig.axes, orientation='horizontal', anchor=(0, 15),aspect=30)
     cbar.ax.set_title(paramdict['plotName']+' (Jy/sr)',fontsize=26,ha='center')
     cbar.ax.xaxis.set_ticks_position('top')
     cbar.ax.tick_params(direction='in',length=5,bottom=True,top=True)
     cbar.ax.xaxis.set_tick_params(labelsize=18)
 
-    #plt.suptitle(paramdict['plotName'], fontsize=22)
-    fig.subplots_adjust(hspace=0.1,wspace=0.05)
+    #plt.suptitle(paramdict['plotName'], fontsize=22) #use if multiple colorbars
+    fig.subplots_adjust(wspace=0.05)
     plt.savefig(fname=productprefix+'_'+paramdict['plotName'].replace(' ', '_')+'_comparison.pdf', bbox_inches='tight')
 ###%%%###%%%###%%%###%%%###%%%###%%%###%%%###%%%###%%%###%%%###%%%###%%%###%%%###
 
-###%%%###%%%### Define functions that take care of the model visibilities ###%%%###%%%### 
+###%%%###%%%### Visibilities comparison function definitions ###%%%###%%%### 
 def sample_fitmodel(fittype, paramdict, posfile):
-    #use the mean position value for each param at the end of the run to determine the 'most likely value' for that fit parameter
+    #use the mean position value for each param at the end of the run to determine the most likely value for that fit parameter
     endpos = np.loadtxt(posfile)
     ndim = endpos.shape[1]
     avgvalues = [np.percentile(endpos[:,i], 50) for i in range(ndim)]
@@ -211,14 +207,13 @@ def sample_fitmodel(fittype, paramdict, posfile):
     inc=avgvalues[6]
 
     nxy, dxy, u, v, _, _, _ = initialize_data(paramdict['visFile'], paramdict['obsFreq'])
-    
 
     if fittype=='gaussring':
         fitmodel = radial_gaussian_ring(avgvalues[0], avgvalues[1], avgvalues[2], paramdict['radiusStart'], paramdict['radiusStep'], paramdict['radiusNumSteps'])
-        model_vis = np.array(sampleProfile(fitmodel, paramdict['radiusStart'], paramdict['radiusStep'], paramdict['radiusNumSteps'], nxy, dxy, u, v, dRA=avgvalues[5], dDec=avgvalues[4], PA=avgvalues[5], inc=avgvalues[6]), dtype=np.complex256) #specifying datatype here because I suspecting some rounding errors earlier and implemented this. it wasn't the fix, but it also isn't broken
+        model_vis = np.array(sampleProfile(fitmodel, np.deg2rad(paramdict['radiusStart']/3600), np.deg2rad(paramdict['radiusStep']/3600), nxy, dxy, u, v, dRA=avgvalues[5], dDec=avgvalues[4], PA=avgvalues[5], inc=avgvalues[6]), dtype=np.complex256) #specifying datatype here because I suspecting some rounding errors earlier and implemented this. it wasn't the fix, but it also isn't broken
     elif fittype=='jinc':
         fitmodel = radial_jinc(avgvalues[0], avgvalues[1], avgvalues[2], paramdict['radiusStart'], paramdict['radiusStep'], paramdict['radiusNumSteps'])
-        model_vis = np.array(sampleProfile(fitmodel, paramdict['radiusStart'], paramdict['radiusStep'], paramdict['radiusNumSteps'], nxy, dxy, u, v, dRA=avgvalues[3], dDec=avgvalues[4], PA=avgvalues[5], inc=avgvalues[6]), dtype=np.complex256) #specifying datatype here because I suspecting some rounding errors earlier and implemented this. it wasn't the fix, but it also isn't broken
+        model_vis = np.array(sampleProfile(fitmodel, np.deg2rad(paramdict['radiusStart']/3600), np.deg2rad(paramdict['radiusStep']/3600), nxy, dxy, u, v, dRA=avgvalues[3], dDec=avgvalues[4], PA=avgvalues[5], inc=avgvalues[6]), dtype=np.complex256) #specifying datatype here because I suspecting some rounding errors earlier and implemented this. it wasn't the fix, but it also isn't broken
     else:
         logging.warning('Please choose a valid fitting model, or add a new one into the code.')
         return None
@@ -232,7 +227,7 @@ def modelVdata_uvplot(paramdict, modelvis, pa, inc, dra, ddec, productprefix):
     data_uvtable = UVTable(uvtable=[u, v, datRe, datIm, w], columns=COLUMNS_V0)
 
     for uvtable in [model_uvtable, data_uvtable]:
-        uvtable.apply_phase(dRA=dra, dDec=ddec)
+        uvtable.apply_phase(dRA=-dra, dDec=-ddec)
         uvtable.deproject(inc=inc, PA=pa)
 
     #Now have the visibilities, u and v in units of wavelengths. Deprojected (I think that's a fair thing to do for uvdist/amp. Don't use that version when/if I do amp/u only plots)
@@ -260,24 +255,30 @@ def visualize_main(paramsin, fitType, positionFile, productname):
     #Set the logger, but use the same filename as used in the main fitting script, in append mode. 
     logging.basicConfig(filename=productname+'.log', filemode='a', level=logging.INFO)
 
-    #Evaluate the best fit model
-    logging.info('Beginning to make the 2D model array...')
-    model_array = make_2d(paramsin, positionFile, fitType)
-    logging.info('Successfully generated the 2D model array.')
+    #Evaluate the best fit model. This was very accident-prone in testing, so everything is wrapped in try-except. 
+    try:
+        logging.info('Generating the 2D model...')
+        model_array = make_2d(paramsin, positionFile, fitType)
+    except:
+        logging.error('Something went wrong in the creation of the 2D model. Moving on...', exc_info=True)
 
     #Create visualizations of the model compared to the image to help understand the fit
-    logging.info('Beginning to make the comparison plot...')
-    plot_img_model_residimg(paramsin, model_array, productname)
-    logging.info('Successfully generated the comparison plot.')
+    try:
+        logging.info('Generating the comparison image...')
+        plot_img_model_residimg(paramsin, model_array, productname)
+    except:
+        logging.error('Something went wrong in the creation of the comparison image. Moving on...', exc_info=True)
 
-    #Take care of generating the model visibilities, making a uvplot
-    #THIS IS BROKEN THIS IS BROKEN DO NOT USE IT RIGHT NOW
-    #fakevis, pa, inc, dra, ddec = sample_fitmodel(fitType, paramsin, positionFile)
-    #modelVdata_uvplot(paramsin, fakevis, pa, inc, dra, ddec, productname)
+    #Create the model visibilities by sampling the 2D model, make a uvplot. 
+    try:
+        #In testing, there are errors to do with the order of magnitude of the model visibilities. Supposed to be in units of Jy (same as the data)
+        fakevis, pa, inc, dra, ddec = sample_fitmodel(fitType, paramsin, positionFile)
+        modelVdata_uvplot(paramsin, fakevis, pa, inc, dra, ddec, productname)
+    except:
+        logging.error('Someting went wrong in the creation of the uvdist/Re(V) plot. Moving on...', exc_info=True)
 
 ###%%%###%%%###%%%###%%%###%%%###%%%###%%%###%%%###%%%###%%%###%%%###%%%###%%%###
 
 ###%%%###%%%### Call main, wrap to prevent issues with being called by run_fittings.py ###%%%###%%%### 
-#This technically can be called as a script with command line arguments, or imported into the runfittings file now???? Decide which is better? Separate for ease?
 if __name__=='__main__':
     visualize_main(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5])
