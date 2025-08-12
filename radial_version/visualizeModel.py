@@ -1,5 +1,4 @@
-#
-#If you have a proper TeX installation: fix lines 25, ()() 
+#If you have a proper TeX installation: fix line 25
 ###%%%###%%%###%%%###%%%###%%%###
 
 ###%%%###%%%### Package Imports ###%%%###%%%###
