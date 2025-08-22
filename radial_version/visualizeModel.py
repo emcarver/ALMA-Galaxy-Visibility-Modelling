@@ -1,4 +1,5 @@
 #If you have a proper TeX installation: fix line 25
+#Everything in the main function is wrapped in try/except blocks due to TeX errors in testing which have been resolved. They are left though, as it ensures any other errors that come up are captured by the logger and are able to be read even though the fit runs in a non-interactive session.
 ###%%%###%%%###%%%###%%%###%%%###
 
 ###%%%###%%%### Package Imports ###%%%###%%%###
