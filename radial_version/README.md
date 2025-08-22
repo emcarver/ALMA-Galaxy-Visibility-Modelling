@@ -24,10 +24,10 @@ Because this tool runs each fitting in a headless session on CANFAR, the instruc
 
 The file `visualizeModel.py` contains several functions used to provide a quick visualization of the quality of the fit, which are called in `run_fittings.py`. If a FITS image of the data you are modelling is provided, then a figure comparing the image to the model is created. A plot of Re(V) and Im(V) with uvdistance is also generated using the uvplot package. An example of this comparison plot is provided. 
 
-![A figure with two images plotted side-by side.](https://github.com/emcarver/ALMA-Galaxy-Visibility-Modelling/edit/main/radial_version/example_plot.png "Example of the image to model comparison plot")
+![A figure with two images plotted side-by side.](https://github.com/emcarver/ALMA-Galaxy-Visibility-Modelling/radial_version/example_plot.png)
 
 A corner plot using the last 1000 steps in the chain is also generated for each fit to aid in judging the convergence of the fitting. 
 
-![A corner plot showing the probability distributions of each fit parameter.](https://github.com/emcarver/ALMA-Galaxy-Visibility-Modelling/edit/main/radial_version/example_corner.png "Example of the corner plot showing the probability distributions of each fit parameter. ")
+![A corner plot showing the probability distributions of each fit parameter.](https://github.com/emcarver/ALMA-Galaxy-Visibility-Modelling/radial_version/example_corner.png) 
 
 Each of these files also contain comments, and `launch_headless_sessions.py` has a header that goes into detail to the flow of the tool, similar to what I have written here. I recommend reading these lines as they detail some issues encountered with multiprocessing and with figure creation. 
